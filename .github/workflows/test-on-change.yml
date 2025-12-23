@@ -1,0 +1,132 @@
+name: Test on File Change
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  detect-changes:
+    name: Detect Changed Modules
+    runs-on: ubuntu-latest
+    outputs:
+      ec2-autoscaling: ${{ steps.filter.outputs.ec2-autoscaling }}
+      ecr-repository: ${{ steps.filter.outputs.ecr-repository }}
+      ecs-service: ${{ steps.filter.outputs.ecs-service }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ec2-autoscaling:
+              - 'ec2/ec2-autoscaling/**'
+            ecr-repository:
+              - 'ecr/repository/**'
+            ecs-service:
+              - 'ecs-service/**'
+
+  test-ec2-autoscaling:
+    name: Test EC2 Auto Scaling
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ec2-autoscaling == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run EC2 Auto Scaling Tests
+        working-directory: ./ec2/ec2-autoscaling/test
+        run: |
+          go mod download
+          go build -v ./...
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ec2-autoscaling-coverage
+          path: ./ec2/ec2-autoscaling/test/coverage.out
+
+  test-ecr-repository:
+    name: Test ECR Repository
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ecr-repository == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run ECR Repository Tests
+        working-directory: ./ecr/repository/test
+        run: |
+          go mod download
+          go build -v ./...
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecr-repository-coverage
+          path: ./ecr/repository/test/coverage.out
+
+  test-ecs-service:
+    name: Test ECS Service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ecs-service == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run ECS Service Tests
+        working-directory: ./ecs-service/test
+        run: |
+          go mod download
+          go build -v ./...
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecs-service-coverage
+          path: ./ecs-service/test/coverage.out
+
+  test-summary:
+    name: Test Summary
+    needs: [detect-changes, test-ec2-autoscaling, test-ecr-repository, test-ecs-service]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Changed Modules" >> $GITHUB_STEP_SUMMARY
+          echo "- EC2 Auto Scaling: ${{ needs.detect-changes.outputs.ec2-autoscaling }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ECR Repository: ${{ needs.detect-changes.outputs.ecr-repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ECS Service: ${{ needs.detect-changes.outputs.ecs-service }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| EC2 Auto Scaling | ${{ needs.test-ec2-autoscaling.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ECR Repository | ${{ needs.test-ecr-repository.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ECS Service | ${{ needs.test-ecs-service.result }} |" >> $GITHUB_STEP_SUMMARY
