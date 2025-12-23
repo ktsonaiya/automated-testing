@@ -1,0 +1,115 @@
+name: Manual Test Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_module:
+        description: 'Module to test (leave empty to test all)'
+        required: false
+        type: choice
+        options:
+          - 'all'
+          - 'ec2-autoscaling'
+          - 'ecr-repository'
+          - 'ecs-service'
+        default: 'all'
+
+jobs:
+  test-ec2-autoscaling:
+    name: Test EC2 Auto Scaling
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_module == 'all' || github.event.inputs.test_module == 'ec2-autoscaling' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run EC2 Auto Scaling tests
+        working-directory: ./ec2/ec2-autoscaling/test
+        run: |
+          go mod download
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ec2-autoscaling-coverage
+          path: ./ec2/ec2-autoscaling/test/coverage.out
+
+  test-ecr-repository:
+    name: Test ECR Repository
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_module == 'all' || github.event.inputs.test_module == 'ecr-repository' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run ECR Repository tests
+        working-directory: ./ecr/repository/test
+        run: |
+          go mod download
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecr-repository-coverage
+          path: ./ecr/repository/test/coverage.out
+
+  test-ecs-service:
+    name: Test ECS Service
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_module == 'all' || github.event.inputs.test_module == 'ecs-service' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run ECS Service tests
+        working-directory: ./ecs-service/test
+        run: |
+          go mod download
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecs-service-coverage
+          path: ./ecs-service/test/coverage.out
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [test-ec2-autoscaling, test-ecr-repository, test-ecs-service]
+    if: always()
+    steps:
+      - name: Download all coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-reports
+
+      - name: Display test summary
+        run: |
+          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| EC2 Auto Scaling | ${{ needs.test-ec2-autoscaling.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ECR Repository | ${{ needs.test-ecr-repository.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ECS Service | ${{ needs.test-ecs-service.result }} |" >> $GITHUB_STEP_SUMMARY
