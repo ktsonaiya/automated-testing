@@ -101,8 +101,8 @@ func TestRepositoryValidation(t *testing.T) {
 			name: "valid repository",
 			repo: &Repository{
 				Name:               "valid-repo",
-				ImageTagMutability: "MUTABLE_",
-				EncryptionType:     "AES256_",
+				ImageTagMutability: "MUTABLE",
+				EncryptionType:     "AES256",
 			},
 			isValid: true,
 		},
@@ -141,4 +141,5 @@ func TestRepositoryValidation(t *testing.T) {
 		})
 	}
 }
+
 
