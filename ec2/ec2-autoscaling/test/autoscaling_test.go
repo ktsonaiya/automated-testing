@@ -108,5 +108,6 @@ func TestAutoScalingGroupDefaults(t *testing.T) {
 	asg := NewAutoScalingGroup("default-test", 1, 5, 3)
 
 	assert.Equal(t, "ELB", asg.HealthCheckType)
-	assert.Equal(t, 300, asg.HealthCheckGracePeriod)
+	assert.Equal(t, 200, asg.HealthCheckGracePeriod)
 }
+
